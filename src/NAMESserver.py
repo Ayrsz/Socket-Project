@@ -1,3 +1,4 @@
+import socket as sck
 from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread
 import time
@@ -7,8 +8,8 @@ import sys
 
 SERVICES_NAMES = dict()
 
-SERVICE_PORT_NAMES_REGISTRATION = 6000
-SERVICE_PORT_NAMES_SEARCH = 7000
+SERVICE_PORT_NAMES_REGISTRATION = 6025
+SERVICE_PORT_NAMES_SEARCH = 7025
 
 
 def check_if_service_exists(name : str) -> bool:
@@ -23,6 +24,9 @@ def check_if_service_exists(name : str) -> bool:
 # Thread que vai escutar requisições da aplicação para registro
 def service_names_registration():
     m_server_socket = socket(AF_INET, SOCK_STREAM)
+
+    #Permitir que CTRL+C libere logo a porta
+    m_server_socket.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
     m_server_socket.bind(("localhost", SERVICE_PORT_NAMES_REGISTRATION)) #IP e porta
     print("[Servidor de registros] esperando [...]") 
     
@@ -40,17 +44,22 @@ def handle_request_register(client_socket, client_addr):
     request = client_socket.recv(1024)
     request = request.decode()
 
-    exists = check_if_service_exists(request)
+    #Request is of the type "name_service$port_of_the_service"
+    new_name_request, port_of_service = request.split("$")
+
+    exists = check_if_service_exists(new_name_request)
     if exists:
         response = "NAME-ALREADY-IN-USE"
         response.encode()
         client_socket.send(response)
     else:
-        print(f"REGISTRATIN THE NAME {request}:{client_socket}")
-        SERVICES_NAMES[request] = client_socket #Registra o IP e a PORTA
-        response = f"SUCESSFUL-REGISTRATE-{request}-NAME"
+        print(f"[Servidor de registros] nome registrado {request}:{client_addr}")
+        
+        SERVICES_NAMES[new_name_request] = (client_addr[0], port_of_service) #Registra o IP e a PORTA
+        response = f"SUCESSFUL-REGISTRATE-{new_name_request}-NAME"
         response = response.encode()
         client_socket.send(response)
+        print(f"[Servidor de registros] novos nomes registrados {SERVICES_NAMES}")
 
     client_socket.close()
 
@@ -61,14 +70,17 @@ def handle_request_register(client_socket, client_addr):
 def service_names_requests():
     
     n_server_socket = socket(AF_INET, SOCK_STREAM)
+    n_server_socket.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
+
     n_server_socket.bind(("localhost", SERVICE_PORT_NAMES_SEARCH)) #IP e porta
     print("[Servidor de nomes] esperando [...]") 
     
     #Espera comunicação
     n_server_socket.listen()
     while True:
-        client_socket, client_addr = n_server_socket.accept() 
-
+        
+        client_socket, client_addr = n_server_socket.accept()
+        
         #Cria Thread para lidar com a requisição, multiplos clientes podem fazer requisições
         Thread(target = handle_request_names, args = (client_socket, client_addr)).start()
 
@@ -95,14 +107,11 @@ def handle_request_names(client_socket, client_addr):
     client_socket.close()
 
 
-
 #Inicializa socket servidor
 if __name__ == "__main__":
     server_names_request = Thread(target = service_names_requests)
     server_names_registration = Thread(target = service_names_registration)
 
+
     server_names_registration.start()
     server_names_request.start()
-
-   # server_names_request.join()
-   # server_names_registration.join()
