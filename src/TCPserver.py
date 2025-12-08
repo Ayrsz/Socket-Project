@@ -6,6 +6,7 @@ import ultralytics as ultra
 import cv2 as cv
 import torch
 
+
 SERVICE_PORT_NAMES_REGISTRATION = 6025
 PORT_THIS_SERVICE = 6300
 YOLO_MODEL = ultra.YOLO("yolo11n.pt", task = "detect")
@@ -60,7 +61,7 @@ def recv_all(client_socket, bytes_size):
 def server_face_detection():
     m_server_socket = socket(AF_INET, SOCK_STREAM)
     m_server_socket.bind(("localhost", PORT_THIS_SERVICE)) #IP e porta
-    print("[Servidor de detecçao] esperando [...]") 
+    print("[Servidor de detecçao TCP] esperando [...]") 
     
     #Espera comunicação
     m_server_socket.listen()
@@ -71,11 +72,11 @@ def server_face_detection():
         Thread(target = handle_request_face_detection, args = (client_socket, client_addr)).start()
 
 def handle_request_face_detection(client_socket, client_addr):
-    print(f"[Servidor de detecçao] estabeleceu conexao com o {client_addr}")
+    print(f"[Servidor de detecçao TCP] estabeleceu conexao com o {client_addr}")
     
     request = client_socket.recv(1024)
     request = request.decode()
-    print(f"[Servidor de detecçao] recebeu o tamanho da imagem {request}")
+    print(f"[Servidor de detecçao TCP] recebeu o tamanho da imagem {request}")
     h, w, c = check_integrity_size_image(request)
 
     #1 Byte per pixel
@@ -88,7 +89,7 @@ def handle_request_face_detection(client_socket, client_addr):
         bytes_image = recv_all(client_socket, bytes_size)
         if len(bytes_image) <= 4 and bytes_image.decode() == "END":
             client_socket.close()
-            print(f"[Servidor de detecçao] conexao com {client_addr} fechada")
+            print(f"[Servidor de detecçao TCP] conexao com {client_addr} fechada")
             break
         #Construct the image
         image = np.frombuffer(bytes_image, dtype=np.uint8)
