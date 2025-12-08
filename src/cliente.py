@@ -5,7 +5,7 @@ import ast
 
 SERVICE_PORT_NAMES_SEARCH = 7025
 CAMERA = cv.VideoCapture(0)
-
+DUMMIE_IMAGE = "./data/caneta_azul.webp"
 
 service_request = sys.argv[1]
 m_client_name = socket(AF_INET, SOCK_STREAM)
@@ -60,9 +60,10 @@ def conection_with_tcp_server(m_client):
     while True:
         ret, im = CAMERA.read()
 
-        if not ret:
-            raise ValueError("Camera not working")
-        
+        if im is None:
+            im = cv.imread(DUMMIE_IMAGE)
+
+
         m_client.sendall(im.tobytes())
         resposta = m_client.recv(1024)
         resposta = resposta.decode()
@@ -71,7 +72,7 @@ def conection_with_tcp_server(m_client):
         coords = ast.literal_eval(resposta)
         
         im = draw_detection(im, coords)
-        cv.imshow("a", im)
+        cv.imshow("TCP SERVICE", im)
         if cv.waitKey(1) & 0xFF == ord('q'):
             m_client.send(("END").encode())
             break
@@ -107,8 +108,8 @@ def conection_with_udp_server(m_client, IP_dest, PORT_dest):
     while True:
         ret, im = CAMERA.read()
 
-        if not ret:
-            raise ValueError("Camera not working")
+        if im is None:
+            im = cv.imread(DUMMIE_IMAGE)
         
         send_image_by_udp(im, m_client, IP_dest, PORT_dest)
         #Coords
@@ -121,14 +122,19 @@ def conection_with_udp_server(m_client, IP_dest, PORT_dest):
         coords = ast.literal_eval(resposta)
         
         im = draw_detection(im, coords)
-        cv.imshow("a", im)
+        cv.imshow("UDP_SERVICE", im)
         if cv.waitKey(1) & 0xFF == ord('q'):
-            m_client.sendto(("END").encode(), (IP_dest, PORT_dest) )
+            header_end = (0).to_bytes(4, "big") 
+            m_client.sendto(header_end, (IP_dest, PORT_dest))
+
+            m_client.sendto(b"END", (IP_dest, PORT_dest) ) 
             break
     m_client.close()
 
 def make_requests_tcp_udp(IP_dest, PORT_dest, type_of_conection : str):
     ret, im = CAMERA.read()
+    if im is None:
+        im = cv.imread("./data/caneta_azul.webp")
     h, w, c = im.shape
     str_shape = str(h) + "x" + str(w) + "x" + str(c)
 

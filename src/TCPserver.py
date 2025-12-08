@@ -5,11 +5,21 @@ import numpy as np
 import ultralytics as ultra
 import cv2 as cv
 import torch
+import signal
 
 
 SERVICE_PORT_NAMES_REGISTRATION = 6025
 PORT_THIS_SERVICE = 6300
 YOLO_MODEL = ultra.YOLO("yolo11n.pt", task = "detect")
+
+def delete_registration(sig, frame):
+    m_client = socket(AF_INET, SOCK_STREAM)
+    m_client.connect(("localhost", SERVICE_PORT_NAMES_REGISTRATION))
+    name = sys.argv[1]
+    request = "DEL" + "$" + name + "$" + str(PORT_THIS_SERVICE)
+    m_client.send(request.encode())
+    m_client.close()
+    sys.exit(0)
 
 def make_request_register() -> bool:
     m_client = socket(AF_INET, SOCK_STREAM)
@@ -17,7 +27,7 @@ def make_request_register() -> bool:
     print(f"Conectado ao servidor de registro")
 
     name = sys.argv[1] #Name need to be passed by the terminal
-    request = name + "$" + str(PORT_THIS_SERVICE)
+    request = "REG$" + name + "$" + str(PORT_THIS_SERVICE)
     m_client.send(request.encode())
 
     response = (m_client.recv(1024)).decode()
@@ -110,7 +120,8 @@ def handle_request_face_detection(client_socket, client_addr):
 if __name__ == "__main__":
    registrated = make_request_register()
    check_integrity_registration(registrated)
-
+   signal.signal(signal.SIGINT, delete_registration)
+   
    server_face_detection_tcp = Thread(target = server_face_detection)
 
    server_face_detection_tcp.start()

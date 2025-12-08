@@ -6,10 +6,22 @@ import os
 import cv2 as cv
 import sys
 
+#Detect ctrl+c
+import signal 
 SERVICES_NAMES = dict()
 
 SERVICE_PORT_NAMES_REGISTRATION = 6025
 SERVICE_PORT_NAMES_SEARCH = 7025
+REGISTER_SERVER_SOCKET = socket(AF_INET, SOCK_STREAM)
+REQUEST_SERVER_SOCKET = socket(AF_INET, SOCK_STREAM)
+
+def delete_service_name(ip, port):
+    key = None
+    for key, value in SERVICES_NAMES.items():
+        if value == (ip, port):
+            key_to_delete = key
+    if key is not None:
+        del SERVICES_NAMES[key_to_delete]
 
 
 def check_if_service_exists(name : str) -> bool:
@@ -22,18 +34,17 @@ def check_if_service_exists(name : str) -> bool:
         return False
 
 # Thread que vai escutar requisições da aplicação para registro
-def service_names_registration():
-    m_server_socket = socket(AF_INET, SOCK_STREAM)
+def service_names_registration_tcp():
 
     #Permitir que CTRL+C libere logo a porta
-    m_server_socket.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
-    m_server_socket.bind(("localhost", SERVICE_PORT_NAMES_REGISTRATION)) #IP e porta
+    REGISTER_SERVER_SOCKET.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
+    REGISTER_SERVER_SOCKET.bind(("localhost", SERVICE_PORT_NAMES_REGISTRATION)) #IP e porta
     print("[Servidor de registros] esperando [...]") 
     
     #Espera comunicação
-    m_server_socket.listen()
+    REGISTER_SERVER_SOCKET.listen()
     while True:
-        client_socket, client_addr = m_server_socket.accept() 
+        client_socket, client_addr = REGISTER_SERVER_SOCKET.accept() 
 
         #Cria Thread para lidar com a requisição, multiplos clientes podem fazer requisições
         Thread(target = handle_request_register, args = (client_socket, client_addr)).start()
@@ -42,24 +53,30 @@ def handle_request_register(client_socket, client_addr):
     print(f"[Servidor de registros] estabeleceu conexao com o {client_addr}")
     
     request = client_socket.recv(1024)
-    request = request.decode()
+    request : str = request.decode()
+    if request.startswith("DEL"):
+        type_req, del_name_request, PORT_TO_DELETE = request.split("$")
+        IP_TO_DELETE = client_addr[0]
+        print("[Servidor de registros] DELETANDO", IP_TO_DELETE, PORT_TO_DELETE)
+        delete_service_name(IP_TO_DELETE, PORT_TO_DELETE)
 
-    #Request is of the type "name_service$port_of_the_service"
-    new_name_request, port_of_service = request.split("$")
 
-    exists = check_if_service_exists(new_name_request)
-    if exists:
-        response = "NAME-ALREADY-IN-USE"
-        response.encode()
-        client_socket.send(response)
-    else:
-        print(f"[Servidor de registros] nome registrado {request}:{client_addr}")
-        
-        SERVICES_NAMES[new_name_request] = (client_addr[0], port_of_service) #Registra o IP e a PORTA
-        response = f"SUCESSFUL-REGISTRATE-{new_name_request}-NAME"
-        response = response.encode()
-        client_socket.send(response)
-        print(f"[Servidor de registros] novos nomes registrados {SERVICES_NAMES}")
+    elif request.startswith("REG"):
+        #Request is of the type "name_service$port_of_the_service"
+        type_req, new_name_request, port_of_service = request.split("$")
+
+        exists = check_if_service_exists(new_name_request)
+        if exists:
+            response = "NAME-ALREADY-IN-USE"
+            client_socket.send(response.encode())
+        else:
+            print(f"[Servidor de registros] nome registrado {request}:{client_addr}")
+
+            SERVICES_NAMES[new_name_request] = (client_addr[0], port_of_service) #Registra o IP e a PORTA
+            response = f"SUCESSFUL-REGISTRATE-{new_name_request}-NAME"
+            response = response.encode()
+            client_socket.send(response)
+            print(f"[Servidor de registros] novos nomes registrados {SERVICES_NAMES}")
 
     client_socket.close()
 
@@ -69,17 +86,16 @@ def handle_request_register(client_socket, client_addr):
 # Thread que vai escutar requisições dos usuários que irão pedir endereços
 def service_names_requests():
     
-    n_server_socket = socket(AF_INET, SOCK_STREAM)
-    n_server_socket.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
+    REQUEST_SERVER_SOCKET.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
 
-    n_server_socket.bind(("localhost", SERVICE_PORT_NAMES_SEARCH)) #IP e porta
+    REQUEST_SERVER_SOCKET.bind(("localhost", SERVICE_PORT_NAMES_SEARCH)) #IP e porta
     print("[Servidor de nomes] esperando [...]") 
     
     #Espera comunicação
-    n_server_socket.listen()
+    REQUEST_SERVER_SOCKET.listen()
     while True:
         
-        client_socket, client_addr = n_server_socket.accept()
+        client_socket, client_addr = REQUEST_SERVER_SOCKET.accept()
         
         #Cria Thread para lidar com a requisição, multiplos clientes podem fazer requisições
         Thread(target = handle_request_names, args = (client_socket, client_addr)).start()
@@ -110,7 +126,7 @@ def handle_request_names(client_socket, client_addr):
 #Inicializa socket servidor
 if __name__ == "__main__":
     server_names_request = Thread(target = service_names_requests)
-    server_names_registration = Thread(target = service_names_registration)
+    server_names_registration = Thread(target = service_names_registration_tcp)
 
 
     server_names_registration.start()
