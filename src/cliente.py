@@ -23,7 +23,7 @@ def call_names_service(service_request):
     m_client_name.close()
     return resposta
 
-def check_integrity(response : str):
+def check_integrity_response_name_service(response : str):
     if response == "NULL":
         raise ValueError(f"Server not started yet or do not exist {service_request}")
     else:
@@ -35,7 +35,19 @@ def check_integrity(response : str):
         PORT_dest = int(response[1])
     return IP_dest, PORT_dest
 
-def make_requests(IP_dest, PORT_dest, type_of_conection : str):
+def draw_detection(im, coordinates):
+    for box_coord in coordinates:
+        xc, yc, w, h = box_coord
+        xi = int(xc - w//2)
+        xf = int(xc + w//2)
+        yi = int(yc - h//2)
+        yf = int(yc + h//2)
+        
+        im = cv.rectangle(im, (xi, yi), (xf, yf), (255, 0, 255), 2)
+    return im
+
+
+def make_requests_tcp_udp(IP_dest, PORT_dest, type_of_conection : str):
     if type_of_conection == "tcp":
         
         ret, im = CAMERA.read()
@@ -65,15 +77,7 @@ def make_requests(IP_dest, PORT_dest, type_of_conection : str):
 
             coords = ast.literal_eval(resposta)
             
-            for box_coord in coords:
-                xc, yc, w, h = box_coord
-                xi = int(xc - w//2)
-                xf = int(xc + w//2)
-                yi = int(yc - h//2)
-                yf = int(yc + h//2)
-                
-                im = cv.rectangle(im, (xi, yi), (xf, yf), (255, 0, 255), 2)
-
+            im = draw_detection(im, coords)
 
 
             cv.imshow("a", im)
@@ -94,9 +98,9 @@ if __name__ == "__main__":
     type_of_conection = "udp" if service_request.find("udp") != -1 else "tcp"
     
     response = call_names_service(service_request)
-    IP_dest, PORT_dest = check_integrity(response)
+    IP_dest, PORT_dest = check_integrity_response_name_service(response)
 
 
-    make_requests(IP_dest, PORT_dest, type_of_conection)
+    make_requests_tcp_udp(IP_dest, PORT_dest, type_of_conection)
 
 
