@@ -13,7 +13,7 @@ PORT_THIS_SERVICE = 6600
 YOLO_MODEL = ultra.YOLO("yolo11n.pt", task = "detect")
 FACE_DETECTION_SOCKET = socket(AF_INET, SOCK_DGRAM)
 
-def delete_registration(sig, frame):
+def delete_registration(sig = None, frame = None):
     m_client = socket(AF_INET, SOCK_STREAM)
     m_client.connect(("localhost", SERVICE_PORT_NAMES_REGISTRATION))
     name = sys.argv[1]
@@ -67,7 +67,7 @@ def recv_all(server_socket):
 
     while len(data) < expected_size:
         try:
-            packet, _ = server_socket.recvfrom(2048)
+            packet, _ = server_socket.recvfrom(60000)
             data.extend(packet)
         except TimeoutError:
             return None
@@ -99,6 +99,8 @@ def handle_request_face_detection():
         if len(payload) <= 4:
             if payload == b"END":
                 print("Recebido END. Finalizando conexão.")
+                delete_registration()
+
                 break
 
         if payload is None:

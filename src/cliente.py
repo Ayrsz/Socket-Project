@@ -2,12 +2,18 @@ from socket import socket, AF_INET, SOCK_STREAM, SOCK_DGRAM
 import sys
 import cv2 as cv
 import ast
+from matplotlib import pyplot as plt
+import time 
+import numpy as np
 
 SERVICE_PORT_NAMES_SEARCH = 7025
 CAMERA = cv.VideoCapture(0)
 DUMMIE_IMAGE = "./data/caneta_azul.webp"
 
 service_request = sys.argv[1]
+TIMING =  bool(sys.argv[2])
+TIMING_ITERATIONS = 1000
+
 m_client_name = socket(AF_INET, SOCK_STREAM)
 m_client_detect_TCP = socket(AF_INET, SOCK_STREAM)
 m_client_detect_UDP = socket(AF_INET, SOCK_DGRAM)
@@ -15,9 +21,25 @@ m_client_detect_UDP = socket(AF_INET, SOCK_DGRAM)
 
 ## SERVICE REGISTRATION ##
 
+def write_graph_of_times(times, type_conection):
+    mean = np.mean(times[2:])
+    std = np.std(times[2:])
+    plt.plot(times[2:], color = "green")
+
+    plt.xlabel("Iterations")
+    plt.ylabel("Time (s)")
+    plt.axhline(y=mean, color='r', linestyle='--', label=f'Mean: {mean:.4f}') # Plot the mean line
+    plt.axhline(y=mean-std, color='b', linestyle='--', label=f'Std: {std:.4f}') # Plot the std line
+    plt.axhline(y=mean+std, color='b', linestyle='--', label=f'Std: {std:.4f}') # Plot the std line
+    plt.legend()
+    plt.title(f"Timing in {type_conection} conection")
+    plt.savefig(f"./data/time_{type_conection}.jpg")
+    plt.close()
+
 def call_names_service(service_request):
     m_client_name.connect(("localhost", SERVICE_PORT_NAMES_SEARCH))
     print(f"Conectado ao servidor de nome\nEnviando a request {service_request}")
+    
     m_client_name.send(service_request.encode())
     resposta = m_client_name.recv(1024)
     resposta = resposta.decode()
@@ -57,15 +79,21 @@ def draw_detection(im, coordinates):
 
 ## TCP CONECTION ##
 def conection_with_tcp_server(m_client):
-    while True:
+    times = []
+    counter = 0
+    while True and counter < TIMING_ITERATIONS:
         ret, im = CAMERA.read()
 
         if im is None:
             im = cv.imread(DUMMIE_IMAGE)
 
+        start_time = time.time()
 
         m_client.sendall(im.tobytes())
         resposta = m_client.recv(1024)
+        
+        elapsed_time = time.time() - start_time
+
         resposta = resposta.decode()
 
         print(f"Recebido a resposta: {resposta}")
@@ -73,27 +101,31 @@ def conection_with_tcp_server(m_client):
         
         im = draw_detection(im, coords)
         cv.imshow("TCP SERVICE", im)
-        if cv.waitKey(1) & 0xFF == ord('q'):
+        if (cv.waitKey(1) & 0xFF == ord('q')) or counter + 1 == TIMING_ITERATIONS:
             m_client.send(("END").encode())
             break
-    m_client.close()
+        if TIMING:
+            times.append(elapsed_time)
+            counter = counter + 1
 
+
+    m_client.close()
+    write_graph_of_times(times, "tcp")
 
 ####################
 
 
 
 def send_image_by_udp(im, m_client, IP_dest, PORT_dest):
-    max_size_packet = 200
-    compressed = compress_for_udp(im, quality = 90)
+    max_size_packet = 40000
 
     # envia header 4 bytes com o tamanho
-    size_bytes = len(compressed).to_bytes(4, "big")
+    size_bytes = len(im).to_bytes(4, "big")
     m_client.sendto(size_bytes, (IP_dest, PORT_dest))
 
-    for i in range(0, len(compressed), max_size_packet):
+    for i in range(0, len(im), max_size_packet):
         
-        part = compressed[i:i + max_size_packet]
+        part = im[i:i + max_size_packet]
         m_client.sendto(part, (IP_dest, PORT_dest))
 
 
@@ -105,15 +137,21 @@ def compress_for_udp(img, quality=10):
 
 
 def conection_with_udp_server(m_client, IP_dest, PORT_dest):
-    while True:
+    times = []
+    counter = 0
+    while True and counter < TIMING_ITERATIONS:
         ret, im = CAMERA.read()
 
         if im is None:
             im = cv.imread(DUMMIE_IMAGE)
-        
-        send_image_by_udp(im, m_client, IP_dest, PORT_dest)
-        #Coords
+
+        im_compressed = compress_for_udp(im, quality = 90)
+        start_time = time.time()
+        send_image_by_udp(im_compressed, m_client, IP_dest, PORT_dest)
         resposta, addr = m_client.recvfrom(2000)
+        elapsed_time = time.time() -start_time
+
+
         resposta = resposta.decode()
         if resposta == "NONE":
             continue
@@ -123,13 +161,19 @@ def conection_with_udp_server(m_client, IP_dest, PORT_dest):
         
         im = draw_detection(im, coords)
         cv.imshow("UDP_SERVICE", im)
-        if cv.waitKey(1) & 0xFF == ord('q'):
+        if cv.waitKey(1) & 0xFF == ord('q') or counter + 1 == TIMING_ITERATIONS:
             header_end = (0).to_bytes(4, "big") 
             m_client.sendto(header_end, (IP_dest, PORT_dest))
 
             m_client.sendto(b"END", (IP_dest, PORT_dest) ) 
             break
+        if TIMING:
+            times.append(elapsed_time)
+            counter = counter + 1
+
     m_client.close()
+    write_graph_of_times(times, "udp")
+
 
 def make_requests_tcp_udp(IP_dest, PORT_dest, type_of_conection : str):
     ret, im = CAMERA.read()

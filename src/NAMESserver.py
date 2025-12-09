@@ -2,7 +2,6 @@ import socket as sck
 from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread
 import time
-import os
 import cv2 as cv
 import sys
 
@@ -22,6 +21,9 @@ def delete_service_name(ip, port):
             key_to_delete = key
     if key is not None:
         del SERVICES_NAMES[key_to_delete]
+        return "SUCESSFUL"
+    else:
+        return "FAIL"
 
 
 def check_if_service_exists(name : str) -> bool:
@@ -58,7 +60,8 @@ def handle_request_register(client_socket, client_addr):
         type_req, del_name_request, PORT_TO_DELETE = request.split("$")
         IP_TO_DELETE = client_addr[0]
         print("[Servidor de registros] DELETANDO", IP_TO_DELETE, PORT_TO_DELETE)
-        delete_service_name(IP_TO_DELETE, PORT_TO_DELETE)
+        delete_status = delete_service_name(IP_TO_DELETE, PORT_TO_DELETE)
+        print(f"[Servidor de registros] OPERACAO DE DELETE FOI {delete_status}")
 
 
     elif request.startswith("REG"):
