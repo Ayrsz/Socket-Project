@@ -11,7 +11,7 @@ CAMERA = cv.VideoCapture(0)
 DUMMIE_IMAGE = "./data/caneta_azul.webp"
 
 service_request = sys.argv[1]
-TIMING =  bool(sys.argv[2])
+TIMING =  True if int(sys.argv[2]) > 0 else False
 TIMING_ITERATIONS = 1000
 
 m_client_name = socket(AF_INET, SOCK_STREAM)
@@ -117,7 +117,7 @@ def conection_with_tcp_server(m_client):
 
 
 def send_image_by_udp(im, m_client, IP_dest, PORT_dest):
-    max_size_packet = 40000
+    max_size_packet = 60000
 
     # envia header 4 bytes com o tamanho
     size_bytes = len(im).to_bytes(4, "big")
