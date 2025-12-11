@@ -73,6 +73,7 @@ O cliente passa o nome do serviço desejado. O cliente consulta o Name Server e 
 ## Cliente acessando o serviço 'service1_tcp'
 
 ```bash
-python3 src/client.py service1_tcp
+python3 src/client.py service1_tcp < timing >
 ```
+Timing é um valor [0, 1], sendo 0 sem a geração de gráficos e 1 com a geração de gráficos. Caso seja setado para 1, a aplicação tem um limite de tempo para executar (1000 ciclos do while True)
 ATENÇÃO: Se o nome do serviço não estiver registrado em src/NAMESserver.py, a solicitação do cliente deve ser rejeitada (com uma mensagem de erro apropriada).
